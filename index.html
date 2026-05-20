@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Chain Risk Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .btn-primary { background-color: #0066cc; border: none; }
+        .btn-primary:hover { background-color: #0052a3; }
+        .result-box { display: none; border-radius: 10px; padding: 15px; margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card p-4">
+                    <h2 class="text-center mb-4 text-primary">🚚 Supply Chain Late Delivery Predictor</h2>
+                    <form id="predictionForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Payment Type</label>
+                                <select class="form-select" id="Type"><option>DEBIT</option><option>TRANSFER</option><option>CASH</option><option>PAYMENT</option></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Scheduled Shipping Days</label>
+                                <input type="number" class="form-select" id="Days_for_shipment_scheduled" value="3" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Category Name</label>
+                                <select class="form-select" id="Category_Name"><option>Sporting Goods</option><option>Fishing</option><option>Apparel</option></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Customer Segment</label>
+                                <select class="form-select" id="Customer_Segment"><option>Consumer</option><option>Corporate</option><option>Home Office</option></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Department Name</label>
+                                <select class="form-select" id="Department_Name"><option>Fan Shop</option><option>Fitness</option><option>Apparel</option></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Market</label>
+                                <select class="form-select" id="Market"><option>Pacific Asia</option><option>USCA</option><option>Europe</option></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Order Region</label>
+                                <select class="form-select" id="Order_Region"><option>East Asia</option><option>South Asia</option><option>Southeast Asia</option></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Product Price ($)</label>
+                                <input type="number" class="form-select" id="Product_Price" value="100">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mt-4 py-2 fs-5">🎯 Predict Risk</button>
+                    </form>
+                    
+                    <div id="result" class="result-box text-center"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('predictionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const resultBox = document.getElementById('result');
+            resultBox.style.display = 'block';
+            resultBox.className = 'result-box alert alert-info';
+            resultBox.innerText = 'Calculating Risk... ⏱️';
+
+            const payload = {
+                Type: document.getElementById('Type').value,
+                Days_for_shipment_scheduled: parseInt(document.getElementById('Days_for_shipment_scheduled').value),
+                Category_Name: document.getElementById('Category_Name').value,
+                Customer_Segment: document.getElementById('Customer_Segment').value,
+                Department_Name: document.getElementById('Department_Name').value,
+                Market: document.getElementById('Market').value,
+                Order_Region: document.getElementById('Order_Region').value,
+                Product_Price: parseFloat(document.getElementById('Product_Price').value)
+            };
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                
+                if(data.late_delivery_risk === 1) {
+                    resultBox.className = 'result-box alert alert-danger';
+                    resultBox.innerHTML = `⚠️ <b>High Risk:</b> This order might get LATE!<br><small>Delay Probability: ${(data.delay_probability * 100).toFixed(2)}%</small>`;
+                } else {
+                    resultBox.className = 'result-box alert alert-success';
+                    resultBox.innerHTML = `✅ <b>Safe:</b> Order will likely be delivered ON TIME!<br><small>Late Probability: ${(data.delay_probability * 100).toFixed(2)}%</small>`;
+                }
+            } catch (error) {
+                resultBox.className = 'result-box alert alert-danger';
+                resultBox.innerText = 'Error connecting to API!';
+            }
+        });
+    </script>
+</body>
+</html>
