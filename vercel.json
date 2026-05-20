@@ -3,7 +3,8 @@
   "builds": [
     {
       "src": "app.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["classifier_model.pkl", "label_encoders.pkl", "index.html"] }
     }
   ],
   "routes": [
