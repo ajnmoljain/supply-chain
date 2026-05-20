@@ -1,30 +1,25 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import pandas as pd
 import numpy as np
+import pandas as pd
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 import pickle
-from fastapi.middleware.cors import CORSMiddleware
+import os
 
-app = FastAPI(title="Supply Chain AI Core", description="API for predicting late delivery and demand")
+app = FastAPI()
 
-# Cors settings taaki frontend connects bina error ke ho sakein
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Load Models & Encoders
-with open('classifier_model.pkl', 'rb') as f:
+clf_model_path = os.path.join(BASE_DIR, "classifier_model.pkl")
+encoders_path = os.path.join(BASE_DIR, "label_encoders.pkl")
+
+# Sirf Classifier aur Encoders load honge (Size under 500MB)
+with open(clf_model_path, "rb") as f:
     clf_model = pickle.load(f)
-with open('regressor_model.pkl', 'rb') as f:
-    reg_model = pickle.load(f)
-with open('label_encoders.pkl', 'rb') as f:
+
+with open(encoders_path, "rb") as f:
     encoders = pickle.load(f)
 
-# Input Schema
 class OrderInput(BaseModel):
     Type: str
     Days_for_shipment_scheduled: int
@@ -35,50 +30,35 @@ class OrderInput(BaseModel):
     Order_Region: str
     Product_Price: float
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def home():
-    return {"status": "Online", "message": "Supply Chain Multi-Model API is Live!"}
+    index_path = os.path.join(BASE_DIR, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h1>Backend is Live! index.html missing.</h1>"
 
 @app.post("/predict")
 def make_prediction(data: OrderInput):
-    # 1. Map input to DataFrame columns exactly as trained
-    raw_data = {
+    input_df = pd.DataFrame([{
         'Type': data.Type,
         'Days for shipment (scheduled)': data.Days_for_shipment_scheduled,
         'Category Name': data.Category_Name,
         'Customer Segment': data.Customer_Segment,
         'Department Name': data.Department_Name,
         'Market': data.Market,
-        'Order_Region': data.Order_Region, # Check if Column name matches your training data (e.g. 'Order Region')
+        'Order Region': data.Order_Region,
         'Product Price': data.Product_Price
-    }
+    }])
     
-    # Note: Agar training ke waqt space tha name me toh 'Order Region' likhein
-    # data matching exact columns of X_train
-    input_df = pd.DataFrame({
-        'Type': [data.Type],
-        'Days for shipment (scheduled)': [data.Days_for_shipment_scheduled],
-        'Category Name': [data.Category_Name],
-        'Customer Segment': [data.Customer_Segment],
-        'Department Name': [data.Department_Name],
-        'Market': [data.Market],
-        'Order Region': [data.Order_Region],
-        'Product Price': [data.Product_Price]
-    })
+    processed_features = encoders.transform(input_df)
     
-    # 2. Transform text labels to numeric codes using label encoders
-    processed_df = input_df.copy()
-    for col in ['Type', 'Category Name', 'Customer Segment', 'Department Name', 'Market', 'Order Region']:
-        processed_df[col] = encoders[col].transform(input_df[col])
-        
-    # 3. Running Multi-Model Inference
-    risk_pred = int(clf_model.predict(processed_df)[0])
-    risk_prob = float(clf_model.predict_proba(processed_df)[0][1])
+    risk_pred = int(clf_model.predict(processed_features)[0])
+    risk_prob = float(clf_model.predict_proba(processed_features)[0][1])
     
-    demand_pred = reg_model.predict(processed_df)[0]
-    final_demand = int(np.ceil(demand_pred)) if demand_pred > 0 else 1
+    # Simple direct logic for UI inventory placeholder without heavy file
+    final_demand = int(np.random.randint(1, 5)) if risk_pred == 1 else int(np.random.randint(5, 15))
     
-    # 4. JSON Output
     return {
         "late_delivery_risk": risk_pred,
         "delay_probability": risk_prob,
